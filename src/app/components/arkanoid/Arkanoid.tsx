@@ -16,9 +16,11 @@ import {
   drawBricks,
   drawGameOver,
   drawPaddle,
+  drawPowerUps,
   drawUI,
   initializeBricks,
   paddleMovement,
+  powerUpsMovement,
 } from "@/utils/functions";
 import {
   ArkanoidBoard,
@@ -26,7 +28,7 @@ import {
   ArkanoidBoardScore,
   ArkanoidItem,
 } from "./arkanoid.styles";
-import { BrickType, GameType } from "@/types/arkanoid";
+import { BrickType, GameType, TDropPowerUp } from "@/types/arkanoid";
 
 interface ArkanoidProps {
   gameData: GameType;
@@ -37,6 +39,8 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
   const refCanvas = useRef<HTMLCanvasElement>(null);
   const refSprite = useRef<HTMLImageElement>(null);
   const refBricks = useRef<HTMLImageElement>(null);
+  const refBricks2 = useRef<HTMLImageElement>(null);
+  const refPowerUps = useRef<HTMLImageElement>(null);
 
   let ctx: CanvasRenderingContext2D | null = null;
   const [score, setScore] = useState(0);
@@ -73,6 +77,9 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
   const msPerFrame = 1000 / fps;
   let frames = 0;
   let framesPerSec = fps;
+
+  // power ups
+  let droppingPowerUps: TDropPowerUp[] = [];
 
   useEffect(() => {
     let animationFrameId: number;
@@ -159,6 +166,7 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
 
   function reloadGame() {
     bricks = initializeBricks();
+    droppingPowerUps = [];
     resetPositions();
     setScore(0);
     gameOver = false;
@@ -197,7 +205,9 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
       image: refSprite.current,
     });
 
-    drawBricks(bricks, ctx, refBricks.current);
+    drawBricks(bricks, ctx, refBricks.current, refBricks2.current);
+
+    drawPowerUps({ ctx, image: refPowerUps.current, droppingPowerUps });
 
     drawUI(ctx, framesPerSec);
 
@@ -208,6 +218,7 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
       dx,
       dy,
       bricks,
+      droppingPowerUps,
     });
 
     if (bricksDestroyed > 0) {
@@ -252,6 +263,15 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
       }
     }
 
+    // power ups movement
+    const newDroppingPowerUps = powerUpsMovement({
+      canvas: refCanvas.current,
+      droppingPowerUps,
+      paddleX,
+      paddleY,
+    });
+    droppingPowerUps = newDroppingPowerUps;
+
     // move the paddle
     const paddleUpdate = paddleMovement({
       canvas: refCanvas.current,
@@ -280,6 +300,8 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
       <canvas width={448} height={440} ref={refCanvas} />
       <img alt="sprite" src={"/imgs/sprite.png"} ref={refSprite} hidden />
       <img alt="bricks" src={"/imgs/bricks.png"} ref={refBricks} hidden />
+      <img alt="bricks2" src={"/imgs/bricks2.png"} ref={refBricks2} hidden />
+      <img alt="powerups" src={"/imgs/powerups.png"} ref={refPowerUps} hidden />
     </>
   );
 };

@@ -1,4 +1,13 @@
 import {
+  brickEffectFrames,
+  commonBrickHits,
+  goldenBrickHits,
+  maxPowerUpsPerLevel,
+  powerUpHeightScale,
+  powerUpWidthScale,
+  silverBrickHits,
+} from "./../configs/configs";
+import {
   BRICK_STATUS,
   PADDLE_SENSITIVITY,
   ballRadius,
@@ -11,8 +20,18 @@ import {
   brickWidth,
   paddleHeight,
   paddleWidth,
+  powerUpHeight,
+  powerUpWidth,
+  allPowerUps,
+  powerUpDropSpeed,
+  maxPowerUpFases,
 } from "@/configs/configs";
-import { BrickType, TPowerUp } from "@/types/arkanoid";
+import {
+  BrickType,
+  TBrickTypes,
+  TDropPowerUp,
+  TPowerUp,
+} from "@/types/arkanoid";
 
 export function cleanCanvas({
   ctx,
@@ -71,7 +90,8 @@ export function drawPaddle({
 export function drawBricks(
   bricks: BrickType[][],
   ctx: CanvasRenderingContext2D | null,
-  image: HTMLImageElement | null
+  image: HTMLImageElement | null,
+  effectsImage: HTMLImageElement | null
 ) {
   if (!ctx || !image) return;
 
@@ -82,17 +102,39 @@ export function drawBricks(
 
       const clipX = currentBrick.color * 32;
 
-      ctx.drawImage(
-        image,
-        clipX,
-        0,
-        brickWidth, // 31
-        brickHeight, // 14
-        currentBrick.x,
-        currentBrick.y,
-        brickWidth,
-        brickHeight
-      );
+      if (!currentBrick.makeEffect)
+        ctx.drawImage(
+          image,
+          clipX,
+          0,
+          brickWidth, // 31
+          brickHeight, // 14
+          currentBrick.x,
+          currentBrick.y,
+          brickWidth,
+          brickHeight
+        );
+      else {
+        drawBrickEffect({
+          brickX: currentBrick.x,
+          brickY: currentBrick.y,
+          type: currentBrick.type,
+          fase: currentBrick.effectFase,
+          ctx,
+          image: effectsImage,
+        });
+        currentBrick.effectFramesLeft =
+          currentBrick.effectFramesLeft === 0
+            ? brickEffectFrames
+            : currentBrick.effectFramesLeft - 1;
+
+        if (currentBrick.effectFramesLeft === 0) {
+          currentBrick.effectFase =
+            currentBrick.effectFase < 5 ? currentBrick.effectFase + 1 : 1;
+
+          currentBrick.makeEffect = currentBrick.effectFase !== 1;
+        }
+      }
     }
   }
 }
@@ -204,8 +246,7 @@ export function paddleMovement({
 
 export function initializeBricks() {
   let bricks: BrickType[][] = [];
-  const maxUnbreakableBricks = 10;
-  let unbreakableBricksCount = 0;
+  let specialBricksCount = 0;
 
   for (let c = 0; c < brickColumnCount; c++) {
     bricks[c] = []; // empty array
@@ -218,10 +259,16 @@ export function initializeBricks() {
 
       // random to determinate if it's unbreakable
       // and didn't reach the max
-      if (random > 7 && unbreakableBricksCount < 10) unbreakableBricksCount++;
+      if (random > 7 && specialBricksCount < 10) specialBricksCount++;
       else random = Math.floor(Math.random() * 8);
 
-      const powerUps = getPowerUps();
+      const type = random < 8 ? "common" : random === 8 ? "silver" : "golden";
+      const remainingHits =
+        type === "common"
+          ? commonBrickHits
+          : type === "silver"
+          ? silverBrickHits
+          : goldenBrickHits;
 
       // save the info about the brick
       bricks[c][r] = {
@@ -229,13 +276,17 @@ export function initializeBricks() {
         y: brickY,
         status: BRICK_STATUS.ACTIVE,
         color: random,
-        unbreakable: random > 7,
+        unbreakable: false,
+        type,
+        remainingHits,
+        makeEffect: false,
+        effectFase: 1,
+        effectFramesLeft: brickEffectFrames,
       };
-
-      if (c === brickColumnCount && r === brickRowCount)
-        bricks[c][r] = { ...bricks[c][r], powerUp: powerUps[0] };
     }
   }
+
+  assignPowerUps(bricks);
 
   return bricks;
 }
@@ -246,12 +297,14 @@ export function collisionDetection({
   dx,
   dy,
   bricks,
+  droppingPowerUps,
 }: {
   x: number;
   y: number;
   dx: number;
   dy: number;
   bricks: BrickType[][];
+  droppingPowerUps: TDropPowerUp[];
 }) {
   // this variable is for the case thats hit more that one brick at the same time
   let alreadyHitOneBrick = false;
@@ -275,8 +328,29 @@ export function collisionDetection({
       //the ball hit the brick
       if (isBallSameXAsBrick && isBallSameYAsBrick) {
         if (!currentBrick.unbreakable) {
-          currentBrick.status = BRICK_STATUS.DESTROYED;
-          bricksDestroyed++;
+          currentBrick.remainingHits = currentBrick.remainingHits - 1;
+          if (currentBrick.remainingHits === 0) {
+            currentBrick.status = BRICK_STATUS.DESTROYED;
+            bricksDestroyed++;
+
+            if (currentBrick?.powerUp) {
+              // check if the brick has a power up
+              droppingPowerUps.push({
+                x: currentBrick.x,
+                y: currentBrick.y,
+                fase: 0,
+                powerUp: currentBrick.powerUp,
+                lastYFase: currentBrick.y,
+              });
+            }
+          }
+
+          // silver or golden, draw effect
+          if (
+            !currentBrick.makeEffect &&
+            (currentBrick.type === "silver" || currentBrick.type === "golden")
+          )
+            currentBrick.makeEffect = true;
         }
 
         if (alreadyHitOneBrick) continue;
@@ -383,45 +457,155 @@ async function updateScore({
   });
 }
 
-export function getPowerUps() {
-  const powerUps: TPowerUp[] = [
-    {
-      y: 7,
-      type: "B",
-    },
-    {
-      y: 14,
-      type: "C",
-    },
-    {
-      y: 21,
-      type: "D",
-    },
-    {
-      y: 28,
-      type: "E",
-    },
-    {
-      y: 35,
-      type: "L",
-    },
-    {
-      y: 42,
-      type: "M",
-    },
-    {
-      y: 49,
-      type: "P",
-    },
-    {
-      y: 56,
-      type: "S",
-    },
-    {
-      y: 63,
-      type: "T",
-    },
-  ];
+export function drawPowerUps({
+  ctx,
+  image,
+  droppingPowerUps,
+}: {
+  ctx: CanvasRenderingContext2D | null;
+  droppingPowerUps: TDropPowerUp[];
+  image: HTMLImageElement | null;
+}) {
+  if (!ctx || !image) return;
 
-  return powerUps;
+  for (let i = 0; i < droppingPowerUps.length; i++) {
+    const droppingPowerUp = droppingPowerUps[i];
+
+    ctx.drawImage(
+      image, // image
+      2, // clipX: x cut coordinates
+      73, // clipY: y cut coordinates
+      powerUpWidth, // x cut size
+      powerUpHeight, // y cut size
+      droppingPowerUp.x + 5, // draw x position
+      droppingPowerUp.y + 5, // draw y position
+      powerUpWidth + powerUpWidthScale, // draw width
+      powerUpHeight + powerUpHeightScale // draw height
+    );
+
+    ctx.drawImage(
+      image, // image
+      droppingPowerUp.fase * powerUpWidth, // clipX: x cut coordinates
+      droppingPowerUp.powerUp.y, // clipY: y cut coordinates
+      powerUpWidth, // x cut size
+      powerUpHeight, // y cut size
+      droppingPowerUp.x, // draw x position
+      droppingPowerUp.y, // draw y position
+      powerUpWidth + powerUpWidthScale, // draw width
+      powerUpHeight + powerUpHeightScale // draw height
+    );
+  }
+}
+
+export function powerUpsMovement({
+  canvas,
+  droppingPowerUps,
+  paddleX,
+  paddleY,
+}: {
+  canvas: HTMLCanvasElement | null;
+  droppingPowerUps: TDropPowerUp[];
+  paddleX: number;
+  paddleY: number;
+}) {
+  if (!canvas) return droppingPowerUps;
+
+  const removePowerUps: number[] = [];
+
+  for (let i = 0; i < droppingPowerUps.length; i++) {
+    const droppingPowerUp = droppingPowerUps[i];
+
+    // power up touch the paddle
+    const isPowerUpSameXAsPaddle =
+      (droppingPowerUp.x > paddleX &&
+        droppingPowerUp.x < paddleX + paddleWidth) ||
+      (droppingPowerUp.x + powerUpWidth + powerUpWidthScale > paddleX &&
+        droppingPowerUp.x + powerUpWidth + powerUpWidthScale <
+          paddleX + paddleWidth);
+
+    const isPowerUpTouchingPaddleSurface =
+      droppingPowerUp.y + powerUpDropSpeed > paddleY;
+
+    // touch the floor
+    if (droppingPowerUp.y + powerUpDropSpeed >= canvas.height) {
+      removePowerUps.push(i);
+    } else if (isPowerUpSameXAsPaddle && isPowerUpTouchingPaddleSurface) {
+      // hit the paddle
+      console.log("hit the paddle");
+      removePowerUps.push(i);
+    }
+
+    const faseShouldChange =
+      droppingPowerUp.y + powerUpDropSpeed - droppingPowerUp.lastYFase >
+      powerUpHeight;
+
+    const newFase = faseShouldChange
+      ? droppingPowerUp.fase < maxPowerUpFases
+        ? droppingPowerUp.fase + 1
+        : 0
+      : droppingPowerUp.fase;
+
+    droppingPowerUps[i] = {
+      ...droppingPowerUp,
+      fase: newFase,
+      y: droppingPowerUp.y + powerUpDropSpeed,
+      lastYFase: faseShouldChange
+        ? droppingPowerUp.y + powerUpDropSpeed
+        : droppingPowerUp.lastYFase,
+    };
+  }
+
+  return droppingPowerUps.filter((_, i) => !removePowerUps.includes(i));
+}
+
+function getRandomPowerUp() {
+  let random = Math.floor(Math.random() * allPowerUps.length);
+
+  return allPowerUps[random];
+}
+
+function assignPowerUps(bricks: BrickType[][]) {
+  for (let i = 0; i < maxPowerUpsPerLevel; i++) {
+    const randomColumn = Math.floor(Math.random() * brickColumnCount);
+    const randomRow = Math.floor(Math.random() * brickRowCount);
+
+    const powerUp = getRandomPowerUp();
+    bricks[randomColumn][randomRow] = {
+      ...bricks[randomColumn][randomRow],
+      powerUp: powerUp,
+    };
+  }
+}
+
+function drawBrickEffect({
+  brickX,
+  brickY,
+  type,
+  fase,
+  image,
+  ctx,
+}: {
+  brickX: number;
+  brickY: number;
+  type: TBrickTypes;
+  fase: number;
+  ctx: CanvasRenderingContext2D | null;
+  image: HTMLImageElement | null;
+}) {
+  if (!ctx || !image) return;
+
+  let clipX = fase * 16;
+  let clipY = type === "silver" ? 24 : 32;
+
+  ctx.drawImage(
+    image,
+    clipX, // clipX: x cut coordinates
+    clipY, // clipY: y cut coordinates
+    16, // x cut size
+    8, // y cut size
+    brickX, // draw x position
+    brickY, // draw y position
+    brickWidth, // draw width
+    brickHeight // draw height
+  );
 }
