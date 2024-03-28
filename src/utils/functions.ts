@@ -188,11 +188,13 @@ export function ballMovement({
     x + dx > canvas.width - ballRadius || // right wall
     x + dx < ballRadius // left wall
   ) {
+    playSound("wallHit");
     dx = -dx;
   }
 
   // bounce the ball on the top
   if (y + dy < ballRadius) {
+    playSound("wallHit");
     dy = -dy;
   }
 
@@ -203,6 +205,7 @@ export function ballMovement({
   const isBallTouchingPaddleSurface = y + ballRadius + dy > paddleY;
 
   if (isBallSameXAsPaddle && isBallTouchingPaddleSurface) {
+    playSound("paddleHit");
     dy = -dy; // change ball direction
     paddleHit = true;
 
@@ -327,6 +330,9 @@ export function collisionDetection({
 
       //the ball hit the brick
       if (isBallSameXAsBrick && isBallSameYAsBrick) {
+        if (currentBrick.type === "common") playSound("brickHit");
+        else playSound("specialBrickHit");
+
         if (!currentBrick.unbreakable) {
           currentBrick.remainingHits = currentBrick.remainingHits - 1;
           if (currentBrick.remainingHits === 0) {
@@ -608,4 +614,75 @@ function drawBrickEffect({
     brickWidth, // draw width
     brickHeight // draw height
   );
+}
+
+const sounds = {
+  brickHit: () => {
+    const sound = document.getElementById("brick-hit");
+    if (sound) {
+      const promise = (sound as HTMLAudioElement).play();
+
+      if (promise !== undefined) {
+        promise
+          .then((_) => {
+            // Autoplay started!
+          })
+          .catch((error) => {
+            console.log(" Autoplay was prevented.");
+          });
+      }
+    }
+  },
+  specialBrickHit: () => {
+    const sound = document.getElementById("special-brick-hit");
+    if (sound) {
+      const promise = (sound as HTMLAudioElement).play();
+
+      if (promise !== undefined) {
+        promise
+          .then((_) => {
+            // Autoplay started!
+          })
+          .catch((error) => {
+            console.log(" Autoplay was prevented.");
+          });
+      }
+    }
+  },
+  paddleHit: () => {
+    const sound = document.getElementById("paddle-hit");
+    if (sound) {
+      const promise = (sound as HTMLAudioElement).play();
+
+      if (promise !== undefined) {
+        promise
+          .then((_) => {
+            // Autoplay started!
+          })
+          .catch((error) => {
+            console.log(" Autoplay was prevented.");
+          });
+      }
+    }
+  },
+  wallHit: () => {
+    const sound = document.getElementById("wall-hit");
+    if (sound) {
+      const promise = (sound as HTMLAudioElement).play();
+
+      if (promise !== undefined) {
+        promise
+          .then((_) => {
+            // Autoplay started!
+          })
+          .catch((error) => {
+            console.log(" Autoplay was prevented.");
+          });
+      }
+    }
+  },
+};
+
+export function playSound(name: keyof typeof sounds) {
+  sounds[name]();
 }

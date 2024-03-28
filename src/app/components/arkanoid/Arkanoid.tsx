@@ -302,6 +302,10 @@ const Arkanoid: FC<ArkanoidProps> = ({ gameData, user }) => {
       <img alt="bricks" src={"/imgs/bricks.png"} ref={refBricks} hidden />
       <img alt="bricks2" src={"/imgs/bricks2.png"} ref={refBricks2} hidden />
       <img alt="powerups" src={"/imgs/powerups.png"} ref={refPowerUps} hidden />
+      <audio id="brick-hit" src={"/sounds/brick_hit.mp3"} />
+      <audio id="special-brick-hit" src={"/sounds/special_brick_hit.mp3"} />
+      <audio id="paddle-hit" src={"/sounds/paddle_hit.mp3"} />
+      <audio id="wall-hit" src={"/sounds/wall_hit.mp3"} />
     </>
   );
 };
