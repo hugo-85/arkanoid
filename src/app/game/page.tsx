@@ -6,7 +6,7 @@ import Arkanoid from "../components/arkanoid/Arkanoid";
 
 async function GameLoader({ session }: { session: Session }) {
   const fetchGame = async () => {
-    const res = await fetch("http://localhost:3000/api/game");
+    const res = await fetch("/api/game");
     const game = await res.json();
     return game;
   };
