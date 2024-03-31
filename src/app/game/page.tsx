@@ -11,12 +11,18 @@ async function GameLoader({ session }: { session: Session }) {
     return game;
   };
 
-  const gameData = await fetchGame();
+  let gameData: any = {};
+  let game: any = {};
+  try {
+    gameData = await fetchGame();
 
-  const game =
-    gameData?.error || gameData.length === 0 ? { highScore: 0 } : gameData[0];
+    game =
+      gameData?.error || gameData.length === 0 ? { highScore: 0 } : gameData[0];
+  } catch (err: any) {
+    gameData.error = err.error;
+  }
 
-  if (gameData?.error) return <h2>Database probably shutdown</h2>;
+  if (gameData?.error) return <h2>{gameData.error}</h2>;
 
   return <Arkanoid gameData={game} user={session.user} />;
 }
